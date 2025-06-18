@@ -2,64 +2,43 @@
 
 # Configuración
 RG="rg-blob-seguro"
-STORAGE="stlabsecureblob$RANDOM"
 LOCATION="eastus"
-CONTAINER="contenedorprivado"
-TAGS="docente=gmtech proyecto=lab_blob_seguro"
-ROL="Storage Blob Data Contributor"
+STORAGE="stlabsecureblob$RANDOM"
+CONTAINER="contenedor-seguro"
 
-# Iniciar sesión si no está autenticado
-if ! az account show &>/dev/null; then
-    echo "Iniciando sesión en Azure..."
-    az login --only-show-errors
-fi
+echo "🔧 Creando grupo de recursos..."
+az group create --name $RG --location $LOCATION --tags docente=gmtech proyecto=lab_blob_seguro
 
-# Obtener el usuario autenticado
-USER=$(az ad signed-in-user show --query userPrincipalName -o tsv)
-
-# Crear grupo de recursos
-echo "Creando grupo de recursos..."
-az group create --name $RG --location $LOCATION --tags $TAGS
-
-# Crear cuenta de almacenamiento
-echo "Creando cuenta de almacenamiento..."
+echo "🔧 Creando cuenta de almacenamiento..."
 az storage account create \
   --name $STORAGE \
   --resource-group $RG \
   --location $LOCATION \
   --sku Standard_LRS \
   --kind StorageV2 \
-  --tags $TAGS
+  --tags docente=gmtech proyecto=lab_blob_seguro \
+  --enable-hierarchical-namespace false
 
-# Asignar rol si no lo tiene
-echo "Verificando si el usuario tiene el rol '$ROL'..."
-SCOPE="/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$RG/providers/Microsoft.Storage/storageAccounts/$STORAGE"
-ROL_ASIGNADO=$(az role assignment list --assignee $USER --scope $SCOPE --query "[?roleDefinitionName=='$ROL']" -o tsv)
+echo "🔍 Obteniendo Object ID del usuario actual..."
+OBJECT_ID=$(az ad signed-in-user show --query objectId -o tsv)
 
-if [[ -z "$ROL_ASIGNADO" ]]; then
-  echo "Asignando rol '$ROL' a $USER..."
-  az role assignment create \
-    --assignee "$USER" \
-    --role "$ROL" \
-    --scope "$SCOPE"
-else
-  echo "✅ El usuario ya tiene el rol '$ROL'"
-fi
+echo "🔐 Asignando rol 'Storage Blob Data Contributor' al usuario..."
+az role assignment create \
+  --assignee-object-id "$OBJECT_ID" \
+  --assignee-principal-type User \
+  --role "Storage Blob Data Contributor" \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$RG/providers/Microsoft.Storage/storageAccounts/$STORAGE"
 
-# Esperar unos segundos para que el rol se propague
-echo "Esperando a que se propague el rol (10s)..."
-sleep 10
+echo "⏳ Esperando a que se propague el rol (15s)..."
+sleep 15
 
-# Crear contenedor privado
-echo "Creando contenedor privado..."
-az storage container create \
-  --name $CONTAINER \
-  --account-name $STORAGE \
-  --auth-mode login \
-  --public-access off
+echo "📦 Creando contenedor privado..."
+az storage container create --account-name $STORAGE --name $CONTAINER --auth-mode login --public-access off
 
-# Subir archivo de prueba
-echo "Subiendo archivo ejemplo.txt..."
+echo "📄 Creando archivo ejemplo.txt..."
+echo "Hola desde Azure Blob Storage" > ejemplo.txt
+
+echo "📤 Subiendo archivo ejemplo.txt..."
 az storage blob upload \
   --account-name $STORAGE \
   --container-name $CONTAINER \
@@ -67,27 +46,28 @@ az storage blob upload \
   --file ejemplo.txt \
   --auth-mode login
 
-# Activar seguimiento de acceso para políticas de ciclo de vida
-echo "Habilitando seguimiento de último acceso..."
-az storage account blob-service-properties update \
+echo "🔁 Habilitando seguimiento de último acceso..."
+az storage blob-service-properties update \
   --account-name $STORAGE \
-  --enable-last-access-tracking true
+  --resource-group $RG \
+  --enable-last-access-tracking true \
+  --tracking-granularity-in-days 1 \
+  --blob-types blockBlob
 
-# Aplicar política de ciclo de vida
-echo "Aplicando política de ciclo de vida..."
+echo "⏱️ Esperando 10 segundos antes de aplicar política..."
+sleep 10
+
+echo "📋 Aplicando política de ciclo de vida..."
 az storage account management-policy create \
   --account-name $STORAGE \
   --resource-group $RG \
   --policy '{
     "rules": [
       {
-        "name": "mover-cool-eliminar",
         "enabled": true,
+        "name": "mover-cool-eliminar",
         "type": "Lifecycle",
         "definition": {
-          "filters": {
-            "blobTypes": ["blockBlob"]
-          },
           "actions": {
             "baseBlob": {
               "tierToCool": {
@@ -97,17 +77,29 @@ az storage account management-policy create \
                 "daysAfterLastAccessTimeGreaterThan": 90
               }
             }
+          },
+          "filters": {
+            "blobTypes": [ "blockBlob" ]
           }
         }
       }
     ]
   }'
 
-# Mostrar resumen
-echo "✅ RESUMEN:"
-echo "Cuenta: $STORAGE"
-az storage blob list \
+echo "🔍 Verificando configuración final..."
+
+echo "📄 Política de ciclo de vida actual:"
+az storage account management-policy show \
   --account-name $STORAGE \
-  --container-name $CONTAINER \
-  --auth-mode login \
-  --output table
+  --resource-group $RG \
+  --query "policy.rules" \
+  --output jsonc
+
+echo "📄 Seguimiento del último acceso:"
+az storage account blob-service-properties show \
+  --account-name $STORAGE \
+  --resource-group $RG \
+  --query "lastAccessTimeTrackingPolicy" \
+  --output jsonc
+
+echo "✅ Todo listo. Cuenta creada: $STORAGE"
