@@ -1,49 +1,47 @@
-# Laboratorio: Azure Blob Storage Seguro con Ciclo de Vida
+# 🛡️ Laboratorio de Blob Storage Seguro con Azure CLI
 
-Este repositorio contiene un laboratorio práctico para crear una cuenta de almacenamiento en Azure con:
-- Contenedor privado.
-- Subida de archivo.
-- Habilitación de seguimiento de último acceso.
-- Política de ciclo de vida que elimina blobs no accedidos en 30 días.
-- Asignación automática de rol si es necesario.
-
-## Requisitos
-
-- Azure CLI instalada y autenticada (`az login`).
-- Permisos suficientes para crear grupos de recursos, cuentas de almacenamiento y asignar roles.
-- Subscripción activa en Azure.
-
-## Archivos incluidos
-
-- `crear_lab_blob.sh`: Script principal que crea todos los recursos y configura la política.
-- `eliminar_lab_blob.sh`: Script para eliminar el laboratorio y liberar recursos.
-- `ejemplo.txt`: Archivo de prueba que se sube al contenedor.
-
-## Uso
-
-### 1. Crear el laboratorio
-
-```bash
-./crear_lab_blob.sh
-```
-
-Este script:
-- Crea grupo de recursos.
-- Crea cuenta de almacenamiento.
-- Verifica y asigna el rol `Storage Blob Data Contributor` si es necesario.
-- Crea un contenedor privado.
-- Carga un archivo de ejemplo.
-- Activa el seguimiento del último acceso.
-- Aplica una política de ciclo de vida.
-
-### 2. Eliminar el laboratorio
-
-```bash
-./eliminar_lab_blob.sh
-```
-
-Confirma cuando se te solicite. Esto liberará los recursos.
+Este laboratorio crea un entorno con:
+- Grupo de recursos
+- Cuenta de almacenamiento con configuración segura
+- Contenedor privado
+- Archivo de prueba subido
+- Política de ciclo de vida
+- Asignación automática de rol `Storage Blob Data Contributor`
 
 ---
 
-🔒 _Este laboratorio fue diseñado para prácticas seguras de gestión del ciclo de vida de objetos en Azure Storage._
+## 📦 Requisitos previos
+
+- Azure CLI instalado y autenticado
+- Permisos para crear recursos y asignar roles
+- Tener el **ObjectId de tu usuario en Azure AD**
+
+Puedes obtenerlo con:
+```bash
+az ad signed-in-user show --query objectId -o tsv
+🚀 Uso del script
+Dar permisos de ejecución:
+
+
+chmod +x crear_lab_blob.sh eliminar_lab_blob.sh
+Ejecutar el script de creación:
+
+
+./crear_lab_blob.sh
+Eliminar los recursos cuando termines:
+
+
+./eliminar_lab_blob.sh
+🧪 Verificaciones
+Visita el portal de Azure y busca el contenedor privado creado.
+
+Verifica que el archivo ejemplo.txt fue subido correctamente.
+
+Revisa la política de ciclo de vida aplicada.
+
+🧠 Notas
+El script espera 15 segundos después de asignar el rol para garantizar la propagación.
+
+Se usa --auth-mode login para evitar el uso de claves de acceso.
+
+Toda la configuración es segura y orientada a entornos educativos o demostrativos.
