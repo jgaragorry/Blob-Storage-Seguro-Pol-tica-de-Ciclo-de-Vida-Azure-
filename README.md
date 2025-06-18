@@ -1,0 +1,1 @@
+# Blob-Storage-Seguro-Pol-tica-de-Ciclo-de-Vida-Azure-
